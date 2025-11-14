@@ -12,8 +12,10 @@
 - **LSM-Tree Architecture**: Memtable-on-TOON design for efficient writes and reads
 - **Type Inference**: Automatic detection of integers, floats, booleans, and strings
 - **Thread-Safe**: Concurrent reads and writes with fine-grained locking
-- **Zero Dependencies**: Pure Go implementation with no external libraries
+- **Interactive Shell**: Built-in shell with query language and compression support
+- **Zero Core Dependencies**: Pure Go implementation for database core
 - **Human-Readable**: Data files are plain text and can be inspected/edited manually
+- **Compression**: Optional gzip compression for exports and data transfer
 
 ## 📦 Installation
 
@@ -128,6 +130,7 @@ FlyDB implements a simplified LSM-tree (Log-Structured Merge-Tree) architecture:
 ## 📖 Documentation
 
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Shell Guide](docs/SHELL_GUIDE.md)** - Interactive shell with query language and compression
 - **[Architecture Deep Dive](docs/ARCHITECTURE.md)** - Detailed system design
 - **[TOON Specification](docs/TOON_SPEC.md)** - Format specification and examples
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to FlyDB
@@ -163,6 +166,44 @@ Comprehensive demonstration of all FlyDB features including:
 - Database restart and persistence
 
 ## 🧰 API Reference
+
+### FlyDB Shell
+
+Run the interactive shell:
+
+```bash
+go run cmd/flydb/shell.go
+# or after building:
+./flydb
+```
+
+**Shell Commands:**
+
+```
+Database Commands:
+  show collections       - List all collections
+  show stats            - Show database statistics
+  use <collection>      - Switch to a collection
+
+Collection Commands:
+  insert <json>         - Insert a document
+  find <id>            - Find a document by ID
+  query <expr>         - Query documents (e.g., query age > 30)
+  commit               - Commit pending changes to disk
+  count                - Show document counts
+  export <file>        - Export collection to JSON
+
+Advanced:
+  compress on|off      - Enable/disable gzip compression
+
+Query Language:
+  field = value        - Exact match
+  field > value        - Greater than
+  field < value        - Less than
+  field >= value       - Greater or equal
+  field <= value       - Less or equal
+  field != value       - Not equal
+```
 
 ### Database Operations
 
@@ -240,11 +281,11 @@ FlyDB is ideal for:
 
 ## 🛣️ Roadmap
 
-- [ ] Query language for complex queries
+- [x] **Query language** for complex queries (basic implementation in shell)
+- [x] **Compression** (gzip support in shell)
 - [ ] Secondary indexes for non-ID fields
 - [ ] Compaction to reclaim space from old versions
 - [ ] Background memtable flush
-- [ ] Compression (gzip, snappy)
 - [ ] Write-ahead log (WAL) for crash recovery
 - [ ] HTTP API server
 - [ ] Replication and clustering

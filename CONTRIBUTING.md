@@ -7,7 +7,7 @@ Thank you for your interest in contributing to FlyDB! This document provides gui
 FlyDB is designed with three core principles:
 
 1. **Educational** - Code should be clear, well-documented, and demonstrative of database internals
-2. **Minimal** - Standard library only, no external dependencies
+2. **Minimal** - Keep dependencies minimal and intentional; prefer standard library when practical
 3. **Correct** - Robust error handling, proper concurrency, and tested code
 
 ## Getting Started
