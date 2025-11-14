@@ -97,6 +97,11 @@ func (c *Collection) Commit() error {
 		return fmt.Errorf("could not write TOON block to file: %w", err)
 	}
 
+	// Flush to ensure data is written to disk
+	if err := c.file.Sync(); err != nil {
+		return fmt.Errorf("could not sync file: %w", err)
+	}
+
 	info := BlockInfo{
 		Offset: offset,
 		Length: int64(n),
@@ -204,47 +209,49 @@ func (c *Collection) loadIndex() error {
 		}
 
 		if isCompressed {
-			gzipReader, err := gzip.NewReader(bytes.NewReader(data[currentOffset:]))
+			// Create a reader starting at currentOffset
+			reader := bytes.NewReader(data[currentOffset:])
+			gzipReader, err := gzip.NewReader(reader)
 			if err != nil {
 				log.Printf("Warning: Could not create gzip reader at offset %d: %v", blockStart, err)
 				currentOffset++
 				continue
 			}
+			gzipReader.Multistream(false)
 
 			decompressed, err := io.ReadAll(gzipReader)
+			gzipCloseErr := gzipReader.Close()
 			if err != nil {
-				_ = gzipReader.Close()
 				log.Printf("Warning: Could not decompress block at offset %d: %v", blockStart, err)
 				currentOffset++
 				continue
 			}
-			_ = gzipReader.Close()
-
-			var buf bytes.Buffer
-			gzipWriter := gzip.NewWriter(&buf)
-			if _, err := gzipWriter.Write(decompressed); err == nil {
-				_ = gzipWriter.Close()
-				blockLen := int64(buf.Len())
-
-				ids, err := toon.ExtractIDs(decompressed)
-				if err != nil {
-					log.Printf("Warning: Could not extract IDs from compressed block at offset %d: %v", blockStart, err)
-					currentOffset += blockLen
-					continue
-				}
-
-				info := BlockInfo{
-					Offset: blockStart,
-					Length: blockLen,
-				}
-				for _, id := range ids {
-					c.index[id] = info
-				}
-
-				currentOffset += blockLen
-			} else {
-				currentOffset++
+			if gzipCloseErr != nil {
+				log.Printf("Warning: Error closing gzip reader at offset %d: %v", blockStart, gzipCloseErr)
 			}
+
+			// Calculate how many bytes were consumed from the source
+			// by checking the position of the underlying reader
+			bytesRemaining := reader.Len()
+			bytesConsumed := int64(len(data[currentOffset:])) - int64(bytesRemaining)
+			blockLen := bytesConsumed
+
+			ids, err := toon.ExtractIDs(decompressed)
+			if err != nil {
+				log.Printf("Warning: Could not extract IDs from compressed block at offset %d: %v", blockStart, err)
+				currentOffset += blockLen
+				continue
+			}
+
+			info := BlockInfo{
+				Offset: blockStart,
+				Length: blockLen,
+			}
+			for _, id := range ids {
+				c.index[id] = info
+			}
+
+			currentOffset += blockLen
 		} else {
 			scanner := bufio.NewScanner(bytes.NewReader(data[currentOffset:]))
 
