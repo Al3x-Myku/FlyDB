@@ -11,13 +11,11 @@ func TestEncodeDecode(t *testing.T) {
 		{"id": "2", "name": "Bob", "age": int64(25)},
 	}
 
-	// Encode
 	encoded, err := Encode("users", docs)
 	if err != nil {
 		t.Fatalf("Encode failed: %v", err)
 	}
 
-	// Decode first document
 	found, err := Decode(encoded, "1")
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
@@ -101,7 +99,7 @@ func TestExtractIDs(t *testing.T) {
 
 func TestMissingID(t *testing.T) {
 	docs := []Document{
-		{"name": "Alice"}, // Missing ID
+		{"name": "Alice"},
 	}
 
 	_, err := Encode("test", docs)

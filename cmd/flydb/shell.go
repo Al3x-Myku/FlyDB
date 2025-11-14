@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/Al3x-Myku/FlyDB/pkg/db"
@@ -394,47 +393,6 @@ func parseQuery(expr string) (field, operator, value string, err error) {
 
 	err = fmt.Errorf("no valid operator found (supported: =, !=, >, <, >=, <=)")
 	return
-}
-
-func compareValues(docValue interface{}, op, queryValue string) bool {
-	docStr := fmt.Sprint(docValue)
-
-	docNum, docErr := strconv.ParseFloat(docStr, 64)
-	queryNum, queryErr := strconv.ParseFloat(queryValue, 64)
-
-	if docErr == nil && queryErr == nil {
-		switch op {
-		case "=":
-			return docNum == queryNum
-		case "!=":
-			return docNum != queryNum
-		case ">":
-			return docNum > queryNum
-		case "<":
-			return docNum < queryNum
-		case ">=":
-			return docNum >= queryNum
-		case "<=":
-			return docNum <= queryNum
-		}
-	}
-
-	switch op {
-	case "=":
-		return docStr == queryValue
-	case "!=":
-		return docStr != queryValue
-	case ">":
-		return docStr > queryValue
-	case "<":
-		return docStr < queryValue
-	case ">=":
-		return docStr >= queryValue
-	case "<=":
-		return docStr <= queryValue
-	}
-
-	return false
 }
 
 func main() {

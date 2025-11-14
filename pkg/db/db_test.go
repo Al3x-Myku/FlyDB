@@ -6,7 +6,7 @@ import (
 )
 
 func TestBasicOperations(t *testing.T) {
-	// Create test database
+
 	dataDir := "./test-data"
 	defer os.RemoveAll(dataDir)
 
@@ -16,13 +16,11 @@ func TestBasicOperations(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Get collection
 	users, err := db.GetCollection("users")
 	if err != nil {
 		t.Fatalf("GetCollection failed: %v", err)
 	}
 
-	// Insert document
 	doc := Document{
 		"id":   "1",
 		"name": "Alice",
@@ -36,12 +34,10 @@ func TestBasicOperations(t *testing.T) {
 		t.Errorf("Expected id=1, got %s", id)
 	}
 
-	// Commit
 	if err := users.Commit(); err != nil {
 		t.Fatalf("Commit failed: %v", err)
 	}
 
-	// Find by ID
 	found, err := users.FindByID("1")
 	if err != nil {
 		t.Fatalf("FindByID failed: %v", err)
@@ -60,11 +56,9 @@ func TestMemtableQuery(t *testing.T) {
 
 	users, _ := db.GetCollection("users")
 
-	// Insert without commit
 	doc := Document{"id": "1", "name": "Bob"}
 	users.Insert(doc)
 
-	// Should find in memtable
 	found, err := users.FindByID("1")
 	if err != nil {
 		t.Fatalf("FindByID failed: %v", err)
@@ -78,7 +72,6 @@ func TestPersistence(t *testing.T) {
 	dataDir := "./test-persistence"
 	defer os.RemoveAll(dataDir)
 
-	// First session - write data
 	{
 		db, _ := NewDB(dataDir)
 		users, _ := db.GetCollection("users")
@@ -87,7 +80,6 @@ func TestPersistence(t *testing.T) {
 		db.Close()
 	}
 
-	// Second session - read data
 	{
 		db, _ := NewDB(dataDir)
 		users, _ := db.GetCollection("users")
@@ -126,7 +118,6 @@ func TestBatchInsert(t *testing.T) {
 
 	products, _ := db.GetCollection("products")
 
-	// Insert 100 documents
 	for i := 0; i < 100; i++ {
 		doc := Document{
 			"id":    string(rune('0'+(i%10))) + string(rune('0'+(i/10))),
@@ -136,12 +127,10 @@ func TestBatchInsert(t *testing.T) {
 		products.Insert(doc)
 	}
 
-	// Commit batch
 	if err := products.Commit(); err != nil {
 		t.Fatalf("Batch commit failed: %v", err)
 	}
 
-	// Verify index size
 	if products.IndexSize() != 100 {
 		t.Errorf("Expected 100 indexed documents, got %d", products.IndexSize())
 	}
@@ -156,15 +145,12 @@ func TestUpdate(t *testing.T) {
 
 	users, _ := db.GetCollection("users")
 
-	// Insert original
 	users.Insert(Document{"id": "1", "name": "Dave", "version": 1})
 	users.Commit()
 
-	// Insert update (same ID)
 	users.Insert(Document{"id": "1", "name": "Dave", "version": 2})
 	users.Commit()
 
-	// Should get latest version
 	found, _ := users.FindByID("1")
 	if found["version"] != int64(2) {
 		t.Errorf("Expected version=2, got %v", found["version"])

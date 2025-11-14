@@ -11,13 +11,11 @@ import (
 func main() {
 	const dataDir = "./flydb-data"
 
-	// Clean up from previous runs
 	_ = os.RemoveAll(dataDir)
 
 	fmt.Println("=== FlyDB Demo: Memtable-on-TOON Architecture ===")
 	fmt.Println()
 
-	// 1. Initialize Database
 	database, err := db.NewDB(dataDir)
 	if err != nil {
 		log.Fatalf("Failed to create database: %v", err)
@@ -26,7 +24,6 @@ func main() {
 
 	fmt.Println("✓ Database initialized at:", dataDir)
 
-	// 2. Get a collection
 	users, err := database.GetCollection("users")
 	if err != nil {
 		log.Fatalf("Failed to get collection: %v", err)
@@ -34,7 +31,6 @@ func main() {
 	fmt.Println("✓ Collection 'users' ready")
 	fmt.Println()
 
-	// 3. Insert documents
 	fmt.Println("--- Inserting Documents ---")
 
 	doc1 := db.Document{
@@ -63,14 +59,12 @@ func main() {
 	}
 	fmt.Printf("Inserted: ID=%s, Name=%s, Role=%s\n", id2, doc2["name"], doc2["role"])
 
-	// 4. Commit first batch
 	fmt.Println("\n--- Committing to Disk ---")
 	if err := users.Commit(); err != nil {
 		log.Fatalf("Commit failed: %v", err)
 	}
 	fmt.Println("✓ Batch committed (Alice & Bob written to disk)")
 
-	// 5. Insert more documents (these stay in memtable)
 	fmt.Println("\n--- Inserting More Documents (Memtable) ---")
 
 	doc3 := db.Document{
@@ -86,24 +80,20 @@ func main() {
 	}
 	fmt.Printf("Inserted: ID=%s, Name=%s (uncommitted)\n", id3, doc3["name"])
 
-	// 6. Query documents
 	fmt.Println("\n--- Querying Documents ---")
 
-	// Query from disk
 	found1, err := users.FindByID("1")
 	if err != nil {
 		log.Fatalf("FindByID failed: %v", err)
 	}
 	fmt.Printf("Found (from disk): %v\n", found1)
 
-	// Query from memtable
 	found3, err := users.FindByID("3")
 	if err != nil {
 		log.Fatalf("FindByID failed: %v", err)
 	}
 	fmt.Printf("Found (from memtable): %v\n", found3)
 
-	// 7. Insert document with special characters (test escaping)
 	fmt.Println("\n--- Testing TOON Escaping ---")
 	doc4 := db.Document{
 		"id":          "4",
@@ -115,7 +105,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Insert failed: %v", err)
 	}
-	// Commit doc3 and doc4 together
+
 	if err := users.Commit(); err != nil {
 		log.Fatalf("Commit failed: %v", err)
 	}
@@ -126,7 +116,6 @@ func main() {
 	}
 	fmt.Printf("Document with special chars: %v\n", found4)
 
-	// 7b. Insert doc5 WITHOUT committing (to demonstrate uncommitted loss)
 	fmt.Println("\n--- Inserting Uncommitted Document ---")
 	doc5 := db.Document{
 		"id":   "5",
@@ -136,7 +125,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Insert failed: %v", err)
 	}
-	fmt.Println("Inserted doc5 but NOT committing") // 8. Show database stats
+	fmt.Println("Inserted doc5 but NOT committing")
 	fmt.Println("\n--- Database Statistics ---")
 	stats := database.GetStats()
 	fmt.Printf("Data Directory: %s\n", stats.DataDir)
@@ -146,14 +135,12 @@ func main() {
 			name, collStats.MemtableSize, collStats.IndexSize)
 	}
 
-	// 9. Simulate restart
 	fmt.Println("\n=== Simulating Database Restart ===")
 	if err := database.Close(); err != nil {
 		log.Fatalf("Close failed: %v", err)
 	}
 	fmt.Println("✓ Database closed")
 
-	// 10. Reopen database
 	database2, err := db.NewDB(dataDir)
 	if err != nil {
 		log.Fatalf("Failed to restart database: %v", err)
@@ -166,7 +153,6 @@ func main() {
 	}
 	fmt.Println("✓ Database reopened, index loaded from disk")
 
-	// 11. Query after restart
 	fmt.Println("\n--- Querying After Restart ---")
 
 	found1Again, err := users2.FindByID("1")
@@ -181,14 +167,12 @@ func main() {
 	}
 	fmt.Printf("Dave (persisted): %v\n", found4Again)
 
-	// Both Charlie AND Dave were committed together, so both should be found
 	found3Again, err := users2.FindByID("3")
 	if err != nil {
 		log.Fatalf("FindByID failed: %v", err)
 	}
 	fmt.Printf("Charlie (persisted with Dave): %v\n", found3Again)
 
-	// Eve was never committed, so should not be found
 	_, err = users2.FindByID("5")
 	if err == db.ErrNotFound {
 		fmt.Printf("Eve (not committed): Not found ✓\n")

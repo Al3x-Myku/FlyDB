@@ -25,7 +25,6 @@ func main() {
 
 	fmt.Println("=== Batch Insert Benchmark ===")
 
-	// Insert 1000 documents
 	const batchSize = 1000
 	fmt.Printf("Inserting %d documents...\n", batchSize)
 
@@ -54,7 +53,6 @@ func main() {
 	}
 	fmt.Println("✓ Batch committed")
 
-	// Test query performance
 	fmt.Println("\n=== Query Performance ===")
 	testIDs := []string{"prod_1", "prod_500", "prod_999"}
 
@@ -66,7 +64,6 @@ func main() {
 		fmt.Printf("Found %s: %s - $%.2f\n", id, doc["name"], doc["price"])
 	}
 
-	// Show stats
 	fmt.Println("\n=== Statistics ===")
 	stats := database.GetStats()
 	for name, collStats := range stats.Collections {
