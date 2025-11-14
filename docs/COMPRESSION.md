@@ -55,8 +55,11 @@ if db.IsCompressionEnabled() {
 ### Read Path (FindByID)
 1. Document ID looked up in index → block location
 2. Block read from disk at offset
-3. **If block starts with gzip magic bytes (0x1f8b)**: decompress with gzip
-4. TOON block decoded to retrieve document
+3. **Auto-detect compression**: Check if block starts with gzip magic bytes (`0x1f 0x8b`)
+4. If compressed: decompress with gzip
+5. TOON block decoded to retrieve document
+
+**Important**: Reads use **auto-detection**, not the compression flag. This ensures backward compatibility with existing uncompressed files.
 
 ## Compression Detection
 

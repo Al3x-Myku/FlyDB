@@ -154,8 +154,8 @@ func (s *Shell) showHelp() {
 	fmt.Println()
 	fmt.Println("  Collection Commands (require 'use <collection>' first):")
 	fmt.Println("    insert <json>          - Insert a document (e.g., insert {\"id\":\"1\",\"name\":\"Alice\"})")
-	fmt.Println("    find <id>              - Find a document by ID")
-	fmt.Println("    query <expr>           - Query documents (e.g., query age > 30)")
+	fmt.Println("    find <id>              - Find a document by ID (outputs TOON format)")
+	fmt.Println("    query <expr>           - Query documents (e.g., query age > 30) (outputs TOON format)")
 	fmt.Println("    commit                 - Commit pending changes to disk")
 	fmt.Println("    count                  - Show memtable and indexed document counts")
 	fmt.Println("    stats                  - Show collection statistics")
@@ -237,13 +237,13 @@ func (s *Shell) handleFind(id string) {
 		return
 	}
 
-	jsonBytes, err := json.MarshalIndent(doc, "", "  ")
+	toonBytes, err := toon.Encode(s.current.Name(), []db.Document{doc})
 	if err != nil {
 		fmt.Printf("Error formatting result: %v\n", err)
 		return
 	}
 
-	fmt.Println(string(jsonBytes))
+	fmt.Println(string(toonBytes))
 }
 
 func (s *Shell) handleCommit() {
@@ -306,7 +306,6 @@ func (s *Shell) handleQuery(expr string) {
 		return
 	}
 
-	var results []db.Document
 	memSize := s.current.Size()
 	indexSize := s.current.IndexSize()
 
@@ -317,14 +316,93 @@ func (s *Shell) handleQuery(expr string) {
 		return
 	}
 
-	fmt.Println("⚠️  Warning: Query requires full collection scan - not yet implemented")
-	fmt.Printf("Query parsed: field='%s', operator='%s', value='%s'\n", field, op, value)
-	fmt.Println("\nTo implement full query support:")
-	fmt.Println("  1. Add document iteration to Collection API")
-	fmt.Println("  2. Scan all blocks and apply filter predicate")
-	fmt.Println("  3. Return matching documents")
+	allDocs, err := s.current.All()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
 
-	_ = results
+	var results []db.Document
+	for _, doc := range allDocs {
+		if matchesQuery(doc, field, op, value) {
+			results = append(results, doc)
+		}
+	}
+
+	if len(results) == 0 {
+		fmt.Println("No documents matched the query")
+		return
+	}
+
+	fmt.Printf("Found %d matching document(s):\n\n", len(results))
+
+	toonBytes, err := toon.Encode(s.current.Name(), results)
+	if err != nil {
+		fmt.Printf("Error formatting results: %v\n", err)
+		return
+	}
+
+	fmt.Println(string(toonBytes))
+}
+
+func matchesQuery(doc db.Document, field, operator, value string) bool {
+	fieldVal, ok := doc[field]
+	if !ok {
+		return false
+	}
+
+	switch operator {
+	case "=":
+		return fmt.Sprint(fieldVal) == value
+	case "!=":
+		return fmt.Sprint(fieldVal) != value
+	case ">":
+		return compareValues(fieldVal, value) > 0
+	case "<":
+		return compareValues(fieldVal, value) < 0
+	case ">=":
+		return compareValues(fieldVal, value) >= 0
+	case "<=":
+		return compareValues(fieldVal, value) <= 0
+	default:
+		return false
+	}
+}
+
+func compareValues(fieldVal interface{}, valueStr string) int {
+	switch v := fieldVal.(type) {
+	case int64:
+		if intVal, err := fmt.Sscanf(valueStr, "%d", new(int64)); err == nil && intVal == 1 {
+			var parsedInt int64
+			fmt.Sscanf(valueStr, "%d", &parsedInt)
+			if v > parsedInt {
+				return 1
+			} else if v < parsedInt {
+				return -1
+			}
+			return 0
+		}
+	case float64:
+		if floatVal, err := fmt.Sscanf(valueStr, "%f", new(float64)); err == nil && floatVal == 1 {
+			var parsedFloat float64
+			fmt.Sscanf(valueStr, "%f", &parsedFloat)
+			if v > parsedFloat {
+				return 1
+			} else if v < parsedFloat {
+				return -1
+			}
+			return 0
+		}
+	case string:
+		if v > valueStr {
+			return 1
+		} else if v < valueStr {
+			return -1
+		}
+		return 0
+	}
+
+	return strings.Compare(fmt.Sprint(fieldVal), valueStr)
 }
 
 func (s *Shell) handleCompress(mode string) {

@@ -144,7 +144,8 @@ func (c *Collection) FindByID(id string) (Document, error) {
 	}
 
 	blockData := buf
-	if c.compression {
+	isCompressed := len(buf) >= 2 && buf[0] == 0x1f && buf[1] == 0x8b
+	if isCompressed {
 		gzipReader, err := gzip.NewReader(bytes.NewReader(buf))
 		if err != nil {
 			return nil, fmt.Errorf("could not create gzip reader: %w", err)
@@ -323,4 +324,79 @@ func (c *Collection) IndexSize() int {
 
 func (c *Collection) Name() string {
 	return c.name
+}
+
+func (c *Collection) All() ([]Document, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	if c.file == nil {
+		return nil, ErrCollectionClosed
+	}
+
+	var allDocs []Document
+
+	seenIDs := make(map[string]bool)
+
+	for i := len(c.memtable) - 1; i >= 0; i-- {
+		doc := c.memtable[i]
+		id := fmt.Sprint(doc["id"])
+		if !seenIDs[id] {
+			allDocs = append(allDocs, doc)
+			seenIDs[id] = true
+		}
+	}
+
+	processedBlocks := make(map[BlockInfo]bool)
+
+	for id, info := range c.index {
+		if seenIDs[id] {
+			continue
+		}
+
+		if processedBlocks[info] {
+			continue
+		}
+		processedBlocks[info] = true
+
+		buf := make([]byte, info.Length)
+		_, err := c.file.ReadAt(buf, info.Offset)
+		if err != nil {
+			return nil, fmt.Errorf("could not read block from disk: %w", err)
+		}
+
+		blockData := buf
+		isCompressed := len(buf) >= 2 && buf[0] == 0x1f && buf[1] == 0x8b
+		if isCompressed {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(buf))
+			if err != nil {
+				log.Printf("Warning: Could not create gzip reader: %v", err)
+				continue
+			}
+
+			decompressed, err := io.ReadAll(gzipReader)
+			_ = gzipReader.Close()
+			if err != nil {
+				log.Printf("Warning: Could not decompress block: %v", err)
+				continue
+			}
+			blockData = decompressed
+		}
+
+		docs, err := toon.DecodeAll(blockData)
+		if err != nil {
+			log.Printf("Warning: Could not decode block: %v", err)
+			continue
+		}
+
+		for _, doc := range docs {
+			docID := fmt.Sprint(doc["id"])
+			if !seenIDs[docID] {
+				allDocs = append(allDocs, doc)
+				seenIDs[docID] = true
+			}
+		}
+	}
+
+	return allDocs, nil
 }
