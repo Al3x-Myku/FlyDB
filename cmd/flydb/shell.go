@@ -341,10 +341,10 @@ func (s *Shell) handleExport(filename string) {
 
 		var buf bytes.Buffer
 		gzWriter := gzip.NewWriter(&buf)
-		gzWriter.Write([]byte(`{"status":"demo","message":"Full export requires iteration support"}`))
-		gzWriter.Close()
+		_, _ = gzWriter.Write([]byte(`{"status":"demo","message":"Full export requires iteration support"}`))
+		_ = gzWriter.Close()
 
-		err := os.WriteFile(filename, buf.Bytes(), 0644)
+		err := os.WriteFile(filename, buf.Bytes(), 0600)
 		if err != nil {
 			fmt.Printf("Error writing compressed file: %v\n", err)
 			return
@@ -357,7 +357,7 @@ func (s *Shell) handleExport(filename string) {
 			"docs":    indexSize,
 		}
 		jsonBytes, _ := json.MarshalIndent(demoData, "", "  ")
-		err := os.WriteFile(filename, jsonBytes, 0644)
+		err := os.WriteFile(filename, jsonBytes, 0600)
 		if err != nil {
 			fmt.Printf("Error writing file: %v\n", err)
 			return

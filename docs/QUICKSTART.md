@@ -248,9 +248,9 @@ The in-memory index grows with the number of committed documents. Consider:
 
 ## Next Steps
 
-- Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) for design deep dive
-- Read [TOON_SPEC.md](docs/TOON_SPEC.md) for format details
-- Check out the [examples](examples/) directory
+- Read [ARCHITECTURE.md](ARCHITECTURE.md) for design deep dive
+- Read [TOON_SPEC.md](TOON_SPEC.md) for format details
+- Check out the [examples](../examples/) directory
 - Run the tests to see usage patterns
 
 ## Getting Help

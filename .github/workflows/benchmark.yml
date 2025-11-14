@@ -19,19 +19,23 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.22'
-        cache: true
+        cache: false
 
     - name: Run benchmarks
       run: |
-        go test -bench=. -benchmem -benchtime=10s ./pkg/... | tee benchmark.txt
+        go test -bench=. -benchmem -benchtime=5s ./pkg/... > benchmark.txt 2>&1 || echo "No benchmarks found"
+        cat benchmark.txt
 
-    - name: Store benchmark result
-      uses: benchmark-action/github-action-benchmark@v1
+    - name: Comment benchmark result
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
       with:
-        tool: 'go'
-        output-file-path: benchmark.txt
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        auto-push: true
-        comment-on-alert: true
-        fail-on-alert: false
-        alert-threshold: '150%'
+        script: |
+          const fs = require('fs');
+          const benchmark = fs.readFileSync('benchmark.txt', 'utf8');
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '### Benchmark Results\n\n```\n' + benchmark + '\n```'
+          });

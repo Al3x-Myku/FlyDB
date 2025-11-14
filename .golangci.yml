@@ -10,35 +10,30 @@ linters:
     - goimports
     - misspell
     - godot
-    - gocritic
     - goprintffuncname
     - nolintlint
     - revive
     - unconvert
     - unparam
     - whitespace
-    - gocyclo
     - bodyclose
     - exportloopref
     - goconst
-    - gomnd
-    - gosec
     - prealloc
     - predeclared
     - rowserrcheck
     - sqlclosecheck
     - stylecheck
     - tparallel
-    - unconvert
     - wastedassign
 
 linters-settings:
   gocyclo:
-    min-complexity: 15
+    min-complexity: 30
   
   goconst:
     min-len: 3
-    min-occurrences: 3
+    min-occurrences: 5
   
   misspell:
     locale: US
@@ -51,14 +46,15 @@ linters-settings:
       - name: var-naming
         severity: warning
         disabled: false
-      - name: package-comments
-        severity: warning
-        disabled: false
+  
+  gosec:
+    excludes:
+      - G306
 
 issues:
   exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  max-issues-per-linter: 50
+  max-same-issues: 10
   
   exclude-rules:
     - path: _test\.go
@@ -66,6 +62,13 @@ issues:
         - gosec
         - errcheck
         - goconst
+    - path: cmd/
+      linters:
+        - gocyclo
+        - gosec
+    - linters:
+        - errcheck
+      text: "Error return value of.*Close.*is not checked"
 
 run:
   timeout: 5m

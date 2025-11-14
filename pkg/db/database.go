@@ -63,7 +63,7 @@ func (db *DB) GetCollection(name string) (*Collection, error) {
 
 	// 3. Load the on-disk index into memory
 	if err := c.loadIndex(); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("could not load index for %s: %w", name, err)
 	}
 
