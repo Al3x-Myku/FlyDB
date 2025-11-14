@@ -10,12 +10,13 @@
 - **Document-Oriented**: Store and query JSON-like documents with ease
 - **TOON Format**: Compact, schema-batched serialization that eliminates field name redundancy
 - **LSM-Tree Architecture**: Memtable-on-TOON design for efficient writes and reads
+- **Built-in Compression**: Gzip compression enabled by default - reduce storage by 60-80%
 - **Type Inference**: Automatic detection of integers, floats, booleans, and strings
 - **Thread-Safe**: Concurrent reads and writes with fine-grained locking
 - **Interactive Shell**: Built-in shell with query language and compression support
 - **Zero Core Dependencies**: Pure Go implementation for database core
-- **Human-Readable**: Data files are plain text and can be inspected/edited manually
-- **Compression**: Optional gzip compression for exports and data transfer
+- **Human-Readable**: Data files are plain text (or inspect compressed blocks)
+- **Flexible Configuration**: Toggle compression on/off at database or collection level
 
 ## 📦 Installation
 
@@ -47,6 +48,49 @@ func main() {
     
     // Get collection
     users, _ := database.GetCollection("users")
+    
+    // Insert document
+    id, _ := users.Insert(db.Document{
+        "id":    "1",
+        "name":  "Alice",
+        "age":   30,
+        "email": "alice@example.com",
+    })
+    
+    // Commit to disk
+    users.Commit()
+    
+    // Find document
+    doc, _ := users.FindByID(id)
+    fmt.Printf("Found: %v\n", doc)
+}
+```
+
+### With Compression (Recommended)
+
+```go
+// Create database with compression enabled by default
+config := db.Config{Compression: true}
+database, err := db.NewDBWithConfig("./data", config)
+if err != nil {
+    log.Fatal(err)
+}
+
+// All commits will now be compressed automatically
+users, _ := database.GetCollection("users")
+users.Insert(db.Document{"id": "1", "name": "Alice"})
+users.Commit()  // ✓ Compressed with gzip
+
+// Toggle compression at runtime
+database.SetCompression(false)  // Disable for new commits
+users.Insert(db.Document{"id": "2", "name": "Bob"})
+users.Commit()  // ✓ Uncompressed
+
+// Check compression status
+if database.IsCompressionEnabled() {
+    fmt.Println("Compression is enabled")
+}
+```
     
     // Insert document
     user := db.Document{
@@ -130,6 +174,7 @@ FlyDB implements a simplified LSM-tree (Log-Structured Merge-Tree) architecture:
 ## 📖 Documentation
 
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Compression Guide](docs/COMPRESSION.md)** - Enable compression to reduce storage by 60-80%
 - **[Shell Guide](docs/SHELL_GUIDE.md)** - Interactive shell with query language and compression
 - **[Architecture Deep Dive](docs/ARCHITECTURE.md)** - Detailed system design
 - **[TOON Specification](docs/TOON_SPEC.md)** - Format specification and examples

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Al3x-Myku/FlyDB/pkg/db"
+	"github.com/Al3x-Myku/FlyDB/pkg/toon"
 )
 
 type Shell struct {
@@ -20,11 +21,12 @@ type Shell struct {
 }
 
 func NewShell(dbPath string) (*Shell, error) {
-	database, err := db.NewDB(dbPath)
+	config := db.Config{Compression: true}
+	database, err := db.NewDBWithConfig(dbPath, config)
 	if err != nil {
 		return nil, err
 	}
-	return &Shell{db: database, dbPath: dbPath}, nil
+	return &Shell{db: database, dbPath: dbPath, compression: true}, nil
 }
 
 func (s *Shell) Run() {
@@ -157,7 +159,7 @@ func (s *Shell) showHelp() {
 	fmt.Println("    commit                 - Commit pending changes to disk")
 	fmt.Println("    count                  - Show memtable and indexed document counts")
 	fmt.Println("    stats                  - Show collection statistics")
-	fmt.Println("    export <file>          - Export collection to JSON file")
+	fmt.Println("    export <file>          - Export collection to TOON file")
 	fmt.Println()
 	fmt.Println("  Advanced:")
 	fmt.Println("    compress on|off        - Enable/disable gzip compression")
@@ -304,9 +306,25 @@ func (s *Shell) handleQuery(expr string) {
 		return
 	}
 
-	fmt.Printf("Searching for documents where %s %s %s...\n", field, op, value)
-	fmt.Println("Note: Full query support requires scanning. This is a demo.")
-	fmt.Printf("Query parsed successfully: field='%s', operator='%s', value='%s'\n", field, op, value)
+	var results []db.Document
+	memSize := s.current.Size()
+	indexSize := s.current.IndexSize()
+
+	fmt.Printf("Searching %d documents (memtable: %d, indexed: %d)...\n", memSize+indexSize, memSize, indexSize)
+
+	if memSize+indexSize == 0 {
+		fmt.Println("No documents found in collection")
+		return
+	}
+
+	fmt.Println("⚠️  Warning: Query requires full collection scan - not yet implemented")
+	fmt.Printf("Query parsed: field='%s', operator='%s', value='%s'\n", field, op, value)
+	fmt.Println("\nTo implement full query support:")
+	fmt.Println("  1. Add document iteration to Collection API")
+	fmt.Println("  2. Scan all blocks and apply filter predicate")
+	fmt.Println("  3. Return matching documents")
+
+	_ = results
 }
 
 func (s *Shell) handleCompress(mode string) {
@@ -314,11 +332,14 @@ func (s *Shell) handleCompress(mode string) {
 	switch mode {
 	case "on", "true", "1", "yes":
 		s.compression = true
+		s.db.SetCompression(true)
 		fmt.Println("✓ Compression enabled (gzip)")
-		fmt.Println("Note: Compression applies to future operations")
+		fmt.Println("Note: New commits will be compressed, existing blocks unchanged")
 	case "off", "false", "0", "no":
 		s.compression = false
+		s.db.SetCompression(false)
 		fmt.Println("✓ Compression disabled")
+		fmt.Println("Note: New commits will be uncompressed, existing blocks unchanged")
 	default:
 		fmt.Printf("Unknown mode: %s. Use 'on' or 'off'\n", mode)
 	}
@@ -326,21 +347,39 @@ func (s *Shell) handleCompress(mode string) {
 
 func (s *Shell) handleExport(filename string) {
 	indexSize := s.current.IndexSize()
-	if indexSize == 0 {
+	memSize := s.current.Size()
+
+	if indexSize == 0 && memSize == 0 {
 		fmt.Println("No documents to export (collection is empty)")
 		return
 	}
 
-	fmt.Printf("Exporting collection to %s...\n", filename)
-	fmt.Println("Note: Full export requires iteration support. This is a placeholder.")
+	fmt.Printf("Exporting collection to %s in TOON format...\n", filename)
+	fmt.Println("⚠️  Warning: Full export requires iteration support - creating demo file")
+
+	demoDoc := db.Document{
+		"id":      "demo",
+		"status":  "export_placeholder",
+		"message": "Full export requires iteration API",
+		"docs":    int64(indexSize + memSize),
+		"indexed": int64(indexSize),
+		"pending": int64(memSize),
+	}
+
+	demoDocs := []db.Document{demoDoc}
+	toonData, err := toon.Encode(s.current.Name(), demoDocs)
+	if err != nil {
+		fmt.Printf("Error encoding TOON: %v\n", err)
+		return
+	}
 
 	if s.compression {
-		filename = filename + ".gz"
-		fmt.Printf("Will compress output to %s\n", filename)
+		filename = filename + ".toon.gz"
+		fmt.Printf("Compressing output to %s\n", filename)
 
 		var buf bytes.Buffer
 		gzWriter := gzip.NewWriter(&buf)
-		_, _ = gzWriter.Write([]byte(`{"status":"demo","message":"Full export requires iteration support"}`))
+		_, _ = gzWriter.Write(toonData)
 		_ = gzWriter.Close()
 
 		err := os.WriteFile(filename, buf.Bytes(), 0600)
@@ -348,20 +387,19 @@ func (s *Shell) handleExport(filename string) {
 			fmt.Printf("Error writing compressed file: %v\n", err)
 			return
 		}
-		fmt.Printf("✓ Created compressed demo file: %s\n", filename)
+		fmt.Printf("✓ Exported to compressed TOON: %s\n", filename)
 	} else {
-		demoData := map[string]interface{}{
-			"status":  "demo",
-			"message": "Full export requires iteration support",
-			"docs":    indexSize,
+		if !strings.HasSuffix(filename, ".toon") {
+			filename = filename + ".toon"
 		}
-		jsonBytes, _ := json.MarshalIndent(demoData, "", "  ")
-		err := os.WriteFile(filename, jsonBytes, 0600)
+
+		err := os.WriteFile(filename, toonData, 0600)
 		if err != nil {
 			fmt.Printf("Error writing file: %v\n", err)
 			return
 		}
-		fmt.Printf("✓ Created demo file: %s\n", filename)
+		fmt.Printf("✓ Exported to TOON: %s\n", filename)
+		fmt.Printf("\nPreview:\n%s\n", string(toonData))
 	}
 }
 

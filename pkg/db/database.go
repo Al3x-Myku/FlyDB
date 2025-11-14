@@ -13,9 +13,14 @@ type DB struct {
 	dataDir     string
 	collections map[string]*Collection
 	dbMutex     sync.Mutex
+	config      Config
 }
 
 func NewDB(dataDir string) (*DB, error) {
+	return NewDBWithConfig(dataDir, DefaultConfig)
+}
+
+func NewDBWithConfig(dataDir string, config Config) (*DB, error) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return nil, fmt.Errorf("could not create data dir: %w", err)
 	}
@@ -23,9 +28,22 @@ func NewDB(dataDir string) (*DB, error) {
 	db := &DB{
 		dataDir:     dataDir,
 		collections: make(map[string]*Collection),
+		config:      config,
 	}
 
 	return db, nil
+}
+
+func (db *DB) SetCompression(enabled bool) {
+	db.dbMutex.Lock()
+	defer db.dbMutex.Unlock()
+	db.config.Compression = enabled
+}
+
+func (db *DB) IsCompressionEnabled() bool {
+	db.dbMutex.Lock()
+	defer db.dbMutex.Unlock()
+	return db.config.Compression
 }
 
 func (db *DB) GetCollection(name string) (*Collection, error) {
@@ -43,7 +61,7 @@ func (db *DB) GetCollection(name string) (*Collection, error) {
 		return nil, fmt.Errorf("could not open collection file: %w", err)
 	}
 
-	c := newCollection(name, filePath, file)
+	c := newCollection(name, filePath, file, db.config.Compression)
 
 	if err := c.loadIndex(); err != nil {
 		_ = file.Close()

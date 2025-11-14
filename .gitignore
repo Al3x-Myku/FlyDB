@@ -36,3 +36,7 @@ test-update/
 # OS
 .DS_Store
 Thumbs.db
+
+flydb
+*.gz
+*.zip

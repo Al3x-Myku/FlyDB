@@ -3,6 +3,7 @@ package db
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"log"
@@ -13,21 +14,23 @@ import (
 )
 
 type Collection struct {
-	name     string
-	filePath string
-	file     *os.File
-	mutex    sync.RWMutex
-	memtable []Document
-	index    map[string]BlockInfo
+	name        string
+	filePath    string
+	file        *os.File
+	mutex       sync.RWMutex
+	memtable    []Document
+	index       map[string]BlockInfo
+	compression bool
 }
 
-func newCollection(name, filePath string, file *os.File) *Collection {
+func newCollection(name, filePath string, file *os.File, compression bool) *Collection {
 	return &Collection{
-		name:     name,
-		filePath: filePath,
-		file:     file,
-		memtable: make([]Document, 0),
-		index:    make(map[string]BlockInfo),
+		name:        name,
+		filePath:    filePath,
+		file:        file,
+		memtable:    make([]Document, 0),
+		index:       make(map[string]BlockInfo),
+		compression: compression,
 	}
 }
 
@@ -71,12 +74,25 @@ func (c *Collection) Commit() error {
 		return fmt.Errorf("could not encode TOON block: %w", err)
 	}
 
+	dataToWrite := toonBlock
+	if c.compression {
+		var buf bytes.Buffer
+		gzipWriter := gzip.NewWriter(&buf)
+		if _, err := gzipWriter.Write(toonBlock); err != nil {
+			return fmt.Errorf("could not compress TOON block: %w", err)
+		}
+		if err := gzipWriter.Close(); err != nil {
+			return fmt.Errorf("could not close gzip writer: %w", err)
+		}
+		dataToWrite = buf.Bytes()
+	}
+
 	offset, err := c.file.Seek(0, io.SeekEnd)
 	if err != nil {
 		return fmt.Errorf("could not seek to end of file: %w", err)
 	}
 
-	n, err := c.file.Write(toonBlock)
+	n, err := c.file.Write(dataToWrite)
 	if err != nil {
 		return fmt.Errorf("could not write TOON block to file: %w", err)
 	}
@@ -127,7 +143,24 @@ func (c *Collection) FindByID(id string) (Document, error) {
 		return nil, fmt.Errorf("could not read block from disk: %w", err)
 	}
 
-	doc, err := toon.Decode(buf, id)
+	blockData := buf
+	if c.compression {
+		gzipReader, err := gzip.NewReader(bytes.NewReader(buf))
+		if err != nil {
+			return nil, fmt.Errorf("could not create gzip reader: %w", err)
+		}
+		defer func() {
+			_ = gzipReader.Close()
+		}()
+
+		decompressed, err := io.ReadAll(gzipReader)
+		if err != nil {
+			return nil, fmt.Errorf("could not decompress block: %w", err)
+		}
+		blockData = decompressed
+	}
+
+	doc, err := toon.Decode(blockData, id)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode TOON block: %w", err)
 	}
@@ -160,51 +193,101 @@ func (c *Collection) loadIndex() error {
 	}
 
 	currentOffset := int64(0)
-	scanner := bufio.NewScanner(bytes.NewReader(data))
 
 	for currentOffset < int64(len(data)) {
 		blockStart := currentOffset
 
-		if !scanner.Scan() {
-			break
-		}
-		headerLine := scanner.Text() + "\n"
-		headerLen := len(headerLine)
-
-		count, _, _, err := toon.ParseHeader(headerLine)
-		if err != nil {
-
-			log.Printf("Warning: Skipping malformed block at offset %d: %v", blockStart, err)
-			currentOffset += int64(headerLen)
-			continue
+		isCompressed := false
+		if currentOffset+2 < int64(len(data)) && data[currentOffset] == 0x1f && data[currentOffset+1] == 0x8b {
+			isCompressed = true
 		}
 
-		blockData := headerLine
-		for i := 0; i < count; i++ {
+		if isCompressed {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(data[currentOffset:]))
+			if err != nil {
+				log.Printf("Warning: Could not create gzip reader at offset %d: %v", blockStart, err)
+				currentOffset++
+				continue
+			}
+
+			decompressed, err := io.ReadAll(gzipReader)
+			if err != nil {
+				_ = gzipReader.Close()
+				log.Printf("Warning: Could not decompress block at offset %d: %v", blockStart, err)
+				currentOffset++
+				continue
+			}
+			_ = gzipReader.Close()
+
+			var buf bytes.Buffer
+			gzipWriter := gzip.NewWriter(&buf)
+			if _, err := gzipWriter.Write(decompressed); err == nil {
+				_ = gzipWriter.Close()
+				blockLen := int64(buf.Len())
+
+				ids, err := toon.ExtractIDs(decompressed)
+				if err != nil {
+					log.Printf("Warning: Could not extract IDs from compressed block at offset %d: %v", blockStart, err)
+					currentOffset += blockLen
+					continue
+				}
+
+				info := BlockInfo{
+					Offset: blockStart,
+					Length: blockLen,
+				}
+				for _, id := range ids {
+					c.index[id] = info
+				}
+
+				currentOffset += blockLen
+			} else {
+				currentOffset++
+			}
+		} else {
+			scanner := bufio.NewScanner(bytes.NewReader(data[currentOffset:]))
+
 			if !scanner.Scan() {
 				break
 			}
-			blockData += scanner.Text() + "\n"
-		}
+			headerLine := scanner.Text() + "\n"
+			headerLen := len(headerLine)
 
-		blockLen := int64(len(blockData))
+			count, _, _, err := toon.ParseHeader(headerLine)
+			if err != nil {
 
-		ids, err := toon.ExtractIDs([]byte(blockData))
-		if err != nil {
-			log.Printf("Warning: Could not extract IDs from block at offset %d: %v", blockStart, err)
+				log.Printf("Warning: Skipping malformed block at offset %d: %v", blockStart, err)
+				currentOffset += int64(headerLen)
+				continue
+			}
+
+			blockData := headerLine
+			for i := 0; i < count; i++ {
+				if !scanner.Scan() {
+					break
+				}
+				blockData += scanner.Text() + "\n"
+			}
+
+			blockLen := int64(len(blockData))
+
+			ids, err := toon.ExtractIDs([]byte(blockData))
+			if err != nil {
+				log.Printf("Warning: Could not extract IDs from block at offset %d: %v", blockStart, err)
+				currentOffset += blockLen
+				continue
+			}
+
+			info := BlockInfo{
+				Offset: blockStart,
+				Length: blockLen,
+			}
+			for _, id := range ids {
+				c.index[id] = info
+			}
+
 			currentOffset += blockLen
-			continue
 		}
-
-		info := BlockInfo{
-			Offset: blockStart,
-			Length: blockLen,
-		}
-		for _, id := range ids {
-			c.index[id] = info
-		}
-
-		currentOffset += blockLen
 	}
 
 	if _, err := c.file.Seek(0, io.SeekEnd); err != nil {
@@ -212,51 +295,6 @@ func (c *Collection) loadIndex() error {
 	}
 
 	return nil
-}
-func findBlockEnd(data []byte, currentHeader string) int {
-
-	lines := 0
-	pos := len(currentHeader)
-
-	for pos < len(data) {
-		lineEnd := pos
-		for lineEnd < len(data) && data[lineEnd] != '\n' {
-			lineEnd++
-		}
-
-		lines++
-		line := string(data[pos:lineEnd])
-
-		if lines > 1 && isHeaderLine(line) {
-			return pos
-		}
-
-		pos = lineEnd + 1
-	}
-
-	return len(data)
-}
-
-func isHeaderLine(line string) bool {
-	hasLeftBracket := false
-	hasRightBracket := false
-	hasLeftBrace := false
-	hasRightBrace := false
-
-	for _, r := range line {
-		switch r {
-		case '[':
-			hasLeftBracket = true
-		case ']':
-			hasRightBracket = true
-		case '{':
-			hasLeftBrace = true
-		case '}':
-			hasRightBrace = true
-		}
-	}
-
-	return hasLeftBracket && hasRightBracket && hasLeftBrace && hasRightBrace
 }
 
 func (c *Collection) Close() error {

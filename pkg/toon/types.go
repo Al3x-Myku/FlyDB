@@ -2,7 +2,7 @@ package toon
 
 import "errors"
 
-type Document map[string]interface{}
+type Document map[string]any
 
 var (
 	ErrMissingID      = errors.New("document missing 'id' field")

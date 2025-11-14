@@ -13,6 +13,14 @@ type BlockInfo struct {
 	Length int64
 }
 
+type Config struct {
+	Compression bool
+}
+
+var DefaultConfig = Config{
+	Compression: true,
+}
+
 var (
 	ErrNotFound = errors.New("document not found")
 
