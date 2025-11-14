@@ -1,0 +1,38 @@
+# FlyDB data directories
+*-data/
+flydb-data/
+benchmark-data/
+simple-data/
+test-data/
+test-memtable/
+test-persistence/
+test-notfound/
+test-batch/
+test-update/
+
+# TOON database files
+*.toon
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
