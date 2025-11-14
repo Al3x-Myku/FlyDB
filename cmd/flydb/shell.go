@@ -159,7 +159,7 @@ func (s *Shell) showHelp() {
 	fmt.Println("    commit                 - Commit pending changes to disk")
 	fmt.Println("    count                  - Show memtable and indexed document counts")
 	fmt.Println("    stats                  - Show collection statistics")
-	fmt.Println("    export <file>          - Export collection to TOON file")
+	fmt.Println("    export <file>          - Export entire collection to TOON file (.toon or .toon.gz)")
 	fmt.Println()
 	fmt.Println("  Advanced:")
 	fmt.Println("    compress on|off        - Enable/disable gzip compression")
@@ -432,52 +432,80 @@ func (s *Shell) handleExport(filename string) {
 		return
 	}
 
-	fmt.Printf("Exporting collection to %s in TOON format...\n", filename)
-	fmt.Println("⚠️  Warning: Full export requires iteration support - creating demo file")
+	fmt.Printf("Exporting %d documents (memtable: %d, indexed: %d)...\n",
+		memSize+indexSize, memSize, indexSize)
 
-	demoDoc := db.Document{
-		"id":      "demo",
-		"status":  "export_placeholder",
-		"message": "Full export requires iteration API",
-		"docs":    int64(indexSize + memSize),
-		"indexed": int64(indexSize),
-		"pending": int64(memSize),
+	// Retrieve all documents from the collection
+	allDocs, err := s.current.All()
+	if err != nil {
+		fmt.Printf("Error retrieving documents: %v\n", err)
+		return
 	}
 
-	demoDocs := []db.Document{demoDoc}
-	toonData, err := toon.Encode(s.current.Name(), demoDocs)
+	if len(allDocs) == 0 {
+		fmt.Println("No documents to export (collection is empty)")
+		return
+	}
+
+	// Encode all documents to TOON format
+	toonData, err := toon.Encode(s.current.Name(), allDocs)
 	if err != nil {
 		fmt.Printf("Error encoding TOON: %v\n", err)
 		return
 	}
 
 	if s.compression {
-		filename = filename + ".toon.gz"
+		if !strings.HasSuffix(filename, ".toon.gz") {
+			filename = filename + ".toon.gz"
+		}
 		fmt.Printf("Compressing output to %s\n", filename)
 
 		var buf bytes.Buffer
 		gzWriter := gzip.NewWriter(&buf)
-		_, _ = gzWriter.Write(toonData)
-		_ = gzWriter.Close()
+		_, err = gzWriter.Write(toonData)
+		if err != nil {
+			fmt.Printf("Error compressing data: %v\n", err)
+			return
+		}
+		err = gzWriter.Close()
+		if err != nil {
+			fmt.Printf("Error closing compressor: %v\n", err)
+			return
+		}
 
-		err := os.WriteFile(filename, buf.Bytes(), 0600)
+		err = os.WriteFile(filename, buf.Bytes(), 0644)
 		if err != nil {
 			fmt.Printf("Error writing compressed file: %v\n", err)
 			return
 		}
-		fmt.Printf("✓ Exported to compressed TOON: %s\n", filename)
+		fmt.Printf("✓ Exported %d documents to compressed TOON: %s (%d bytes compressed)\n",
+			len(allDocs), filename, buf.Len())
 	} else {
 		if !strings.HasSuffix(filename, ".toon") {
 			filename = filename + ".toon"
 		}
 
-		err := os.WriteFile(filename, toonData, 0600)
+		err = os.WriteFile(filename, toonData, 0644)
 		if err != nil {
 			fmt.Printf("Error writing file: %v\n", err)
 			return
 		}
-		fmt.Printf("✓ Exported to TOON: %s\n", filename)
-		fmt.Printf("\nPreview:\n%s\n", string(toonData))
+		fmt.Printf("✓ Exported %d documents to TOON: %s (%d bytes)\n",
+			len(allDocs), filename, len(toonData))
+
+		// Show preview for uncompressed exports (first 5 lines)
+		lines := strings.Split(string(toonData), "\n")
+		previewLines := 5
+		if len(lines) < previewLines {
+			previewLines = len(lines)
+		}
+		fmt.Printf("\nPreview (first %d lines):\n", previewLines)
+		for i := 0; i < previewLines; i++ {
+			fmt.Println(lines[i])
+		}
+		if len(lines) > previewLines {
+			fmt.Printf("... (%d more lines)\n", len(lines)-previewLines)
+		}
 	}
 }
 
