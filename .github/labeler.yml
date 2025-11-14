@@ -1,0 +1,33 @@
+pkg/db/**:
+  - db
+  - database
+
+pkg/toon/**:
+  - toon
+  - format
+
+cmd/**:
+  - cli
+  - command
+
+docs/**:
+  - documentation
+
+examples/**:
+  - examples
+
+'**/*_test.go':
+  - tests
+
+'*.md':
+  - documentation
+
+'.github/**':
+  - github-actions
+  - ci
+
+'go.mod':
+  - dependencies
+
+'go.sum':
+  - dependencies

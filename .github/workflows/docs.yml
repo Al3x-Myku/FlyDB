@@ -1,0 +1,40 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/docs.yml'
+
+jobs:
+  lint-docs:
+    name: Lint Markdown
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Lint Markdown files
+      uses: avto-dev/markdown-lint@v1
+      with:
+        args: '**/*.md'
+        ignore: 'node_modules'
+
+  check-links:
+    name: Check Links
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Link Checker
+      uses: lycheeverse/lychee-action@v1
+      with:
+        args: --verbose --no-progress '**/*.md' '**/*.html'
+        fail: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

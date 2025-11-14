@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Run tests
+      run: go test -v ./...
+
+    - name: Build binaries
+      run: |
+        # Linux
+        GOOS=linux GOARCH=amd64 go build -o flydb-linux-amd64 ./cmd/flydb/
+        GOOS=linux GOARCH=arm64 go build -o flydb-linux-arm64 ./cmd/flydb/
+        
+        # macOS
+        GOOS=darwin GOARCH=amd64 go build -o flydb-darwin-amd64 ./cmd/flydb/
+        GOOS=darwin GOARCH=arm64 go build -o flydb-darwin-arm64 ./cmd/flydb/
+        
+        # Windows
+        GOOS=windows GOARCH=amd64 go build -o flydb-windows-amd64.exe ./cmd/flydb/
+        
+        # Create checksums
+        sha256sum flydb-* > checksums.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          flydb-linux-amd64
+          flydb-linux-arm64
+          flydb-darwin-amd64
+          flydb-darwin-arm64
+          flydb-windows-amd64.exe
+          checksums.txt
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
