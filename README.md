@@ -324,15 +324,258 @@ FlyDB is ideal for:
 - **Memory**: O(m + i) - Memtable size + index size
 - **Disk**: Append-only, no fragmentation
 
+## 🌐 HTTP API Server
+
+FlyDB includes a built-in HTTP API server with a web-based dashboard.
+
+### Starting the Server
+
+```bash
+# Start HTTP server on default port :8080
+go run cmd/flydb-server/main.go
+
+# Or build and run
+go build -o flydb-server cmd/flydb-server/main.go
+./flydb-server
+
+# Custom port and data directory
+./flydb-server -addr :3000 -data ./mydata
+```
+
+The server includes:
+- **RESTful API** for all database operations
+- **Web Dashboard** with real-time stats
+- **CORS support** for cross-origin requests
+- **Compression management** via API
+
+Access the dashboard at: `http://localhost:8080`
+
+### Web Dashboard Features
+
+The built-in web dashboard provides:
+- 📊 **Real-time Statistics** - Monitor database health and performance
+- 📁 **Collection Management** - Create, view, and delete collections
+- 📝 **Document CRUD** - Add, edit, and delete documents with a visual interface
+- 🔍 **Query Editor** - Interactive query builder with field/operator/value filters
+- ⚙️ **Settings Panel** - Toggle compression on/off
+- 🗜️ **Compression Control** - Compact collections to apply compression changes
+- 🔄 **Auto-refresh** - Data updates every 30 seconds
+- 🌓 **Dark Mode** - Toggle between light and dark themes
+
+The dashboard automatically stays on the current page when data refreshes, providing a smooth user experience.
+
+### HTTP API Endpoints
+
+#### Database Operations
+
+**Get Database Statistics**
+```bash
+GET /api/stats
+```
+Response:
+```json
+{
+  "data_dir": "./flydb-data",
+  "collections_count": 2,
+  "collections": {
+    "users": {
+      "memtable_size": 5,
+      "index_size": 100,
+      "total_size": 105,
+      "file_path": "./flydb-data/users.toon"
+    }
+  }
+}
+```
+
+**Health Check**
+```bash
+GET /health
+```
+
+#### Collection Management
+
+**List Collections**
+```bash
+GET /api/collections
+```
+
+**Create Collection**
+```bash
+POST /api/collections
+Content-Type: application/json
+
+{
+  "name": "users"
+}
+```
+
+**Delete Collection**
+```bash
+DELETE /api/collections/{collection}
+```
+
+#### Document Operations
+
+**Insert Document**
+```bash
+POST /api/collections/{collection}/documents
+Content-Type: application/json
+
+{
+  "document": {
+    "id": "1",
+    "name": "Alice",
+    "age": 30
+  }
+}
+```
+
+**Get Document by ID**
+```bash
+GET /api/collections/{collection}/documents/{id}
+```
+
+**Update Document**
+```bash
+PUT /api/collections/{collection}/documents/{id}
+Content-Type: application/json
+
+{
+  "document": {
+    "id": "1",
+    "name": "Alice Updated",
+    "age": 31
+  }
+}
+```
+
+**Delete Document**
+```bash
+DELETE /api/collections/{collection}/documents/{id}
+```
+
+**Query Documents**
+```bash
+POST /api/collections/{collection}/query
+Content-Type: application/json
+
+{
+  "field": "age",
+  "operator": ">",
+  "value": "25"
+}
+```
+
+**Get All Documents**
+```bash
+GET /api/collections/{collection}/all
+```
+Returns documents in TOON format.
+
+**Get Document Counts**
+```bash
+GET /api/collections/{collection}/count
+```
+Response:
+```json
+{
+  "memtable": 5,
+  "indexed": 100,
+  "total": 105
+}
+```
+
+**Export Collection**
+```bash
+GET /api/collections/{collection}/export
+```
+Returns all documents as JSON array.
+
+#### Data Persistence
+
+**Commit Changes**
+```bash
+POST /api/collections/{collection}/commit
+```
+Flushes memtable to disk with current compression setting.
+
+**Compact Collection**
+```bash
+POST /api/collections/{collection}/compact
+```
+Rewrites entire collection file with current compression setting. Useful after changing compression settings to apply them to existing data.
+
+#### Compression Settings
+
+**Get Compression Setting**
+```bash
+GET /api/settings/compression
+```
+
+**Update Compression Setting**
+```bash
+POST /api/settings/compression
+Content-Type: application/json
+
+{
+  "compression": true
+}
+```
+
+### cURL Examples
+
+```bash
+# Create collection
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name":"users"}'
+
+# Insert document
+curl -X POST http://localhost:8080/api/collections/users/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "document": {
+      "id": "1",
+      "name": "Alice",
+      "email": "alice@example.com",
+      "age": 30
+    }
+  }'
+
+# Query documents
+curl -X POST http://localhost:8080/api/collections/users/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "field": "age",
+    "operator": ">=",
+    "value": "25"
+  }'
+
+# Commit changes
+curl -X POST http://localhost:8080/api/collections/users/commit
+
+# Enable compression
+curl -X POST http://localhost:8080/api/settings/compression \
+  -H "Content-Type: application/json" \
+  -d '{"compression": true}'
+
+# Compact collection with new compression
+curl -X POST http://localhost:8080/api/collections/users/compact
+
+# Get all documents
+curl http://localhost:8080/api/collections/users/all
+```
+
 ## 🛣️ Roadmap
 
 - [x] **Query language** for complex queries (basic implementation in shell)
-- [x] **Compression** (gzip support in shell)
+- [x] **Compression** (gzip support in shell and HTTP API)
+- [x] **HTTP API server** with web dashboard
+- [x] **Compaction** to rewrite collections with current compression
 - [ ] Secondary indexes for non-ID fields
-- [ ] Compaction to reclaim space from old versions
 - [ ] Background memtable flush
 - [ ] Write-ahead log (WAL) for crash recovery
-- [ ] HTTP API server
 - [ ] Replication and clustering
 
 ## 🤝 Contributing

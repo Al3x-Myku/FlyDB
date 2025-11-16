@@ -1,7 +1,5 @@
-// API Configuration
 const API_BASE = 'http://localhost:8080';
 
-// State
 let currentPage = 'dashboard';
 let currentCollection = null;
 let collections = [];
@@ -9,19 +7,17 @@ let stats = {};
 let compressionEnabled = true;
 let editingDocument = null;
 
-// Initialize
 document.addEventListener('DOMContentLoaded', () => {
     loadDashboard();
     loadCompressionSetting();
-    setInterval(() => refreshData(), 30000); // Auto-refresh every 30 seconds
+    setInterval(() => refreshData(), 30000);
 });
 
-// Theme Toggle
 function toggleTheme() {
     document.documentElement.classList.toggle('dark');
 }
 
-// Navigation
+
 function showPage(page) {
     currentPage = page;
     switch(page) {
@@ -50,7 +46,6 @@ function updateActiveNav(page) {
     event.target.closest('a').classList.remove('text-gray-light', 'dark:text-gray-400');
 }
 
-// Data Loading
 async function loadDashboard() {
     currentPage = 'dashboard';
     try {
@@ -70,22 +65,18 @@ async function loadDashboard() {
 }
 
 async function refreshData() {
-    // Refresh data based on current page
     switch(currentPage) {
         case 'dashboard':
             await loadDashboard();
             break;
         case 'collections':
             if (currentCollection) {
-                // If viewing a specific collection, refresh that view
                 await viewCollection(currentCollection);
             } else {
-                // Otherwise refresh collections page
                 await loadCollectionsPage();
             }
             break;
         case 'query':
-            // Refresh collections list for query page
             const data = await fetchAPI('/api/collections');
             collections = data.collections || [];
             loadQueryPage();
@@ -113,7 +104,6 @@ function renderDashboard() {
     const totalIndexed = Object.values(stats.collections || {}).reduce((sum, col) => sum + col.index_size, 0);
     
     const content = `
-        <!-- PageHeading -->
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="flex flex-col gap-1">
                 <p class="text-gray-dark dark:text-white text-3xl font-black leading-tight">Dashboard</p>
@@ -128,7 +118,6 @@ function renderDashboard() {
             </div>
         </div>
         
-        <!-- Stats -->
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-[#111a22] border border-gray-200 dark:border-gray-800">
                 <p class="text-gray-light dark:text-gray-400 text-base font-medium leading-normal">DB Health Status</p>
@@ -156,7 +145,6 @@ function renderDashboard() {
         </div>
         
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <!-- Collections Table -->
             <div class="flex flex-col gap-4 rounded-xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-[#111a22] lg:col-span-2">
                 <h3 class="text-gray-dark dark:text-white text-lg font-bold leading-tight">Collections Overview</h3>
                 <div class="overflow-x-auto">
@@ -274,7 +262,6 @@ function renderCollectionStats() {
     }).join('');
 }
 
-// Collections Page
 async function loadCollectionsPage() {
     currentPage = 'collections';
     currentCollection = null;
@@ -428,7 +415,6 @@ function renderCollectionView(name, counts, documents) {
     document.getElementById('main-content').innerHTML = content;
 }
 
-// Query Page
 function loadQueryPage() {
     currentPage = 'query';
     const content = `
@@ -571,7 +557,6 @@ function displayQueryResults(results, count) {
     `;
 }
 
-// Settings Page
 function loadSettingsPage() {
     currentPage = 'settings';
     const content = `
@@ -624,7 +609,7 @@ function loadSettingsPage() {
     document.getElementById('main-content').innerHTML = content;
 }
 
-// API Helper
+
 async function fetchAPI(endpoint, options = {}) {
     const response = await fetch(API_BASE + endpoint, {
         headers: {
@@ -642,7 +627,6 @@ async function fetchAPI(endpoint, options = {}) {
     return response.json();
 }
 
-// Actions
 async function commitCollection(name) {
     try {
         const data = await fetchAPI(`/api/collections/${name}/commit`, { method: 'POST' });
@@ -679,7 +663,6 @@ async function compactCollection(name) {
     }
 }
 
-// UI Helpers
 function formatValue(val) {
     if (val === null || val === undefined) return '<nil>';
     if (typeof val === 'boolean') return val ? 'true' : 'false';
@@ -688,7 +671,6 @@ function formatValue(val) {
 }
 
 function showNotification(message) {
-    // Simple notification - you can enhance this
     console.log('Notification:', message);
     const notification = document.createElement('div');
     notification.className = 'fixed top-4 right-4 bg-green-status text-white px-6 py-3 rounded-lg shadow-lg z-50';
@@ -706,7 +688,7 @@ function showError(message) {
     setTimeout(() => notification.remove(), 5000);
 }
 
-// CRUD Operations
+
 function showAddDocumentModal(collection) {
     currentCollection = collection;
     const modal = `
