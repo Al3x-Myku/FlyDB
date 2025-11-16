@@ -154,3 +154,66 @@ func (db *DB) GetStats() Stats {
 
 	return stats
 }
+
+// CreateCollection creates a new empty collection
+func (db *DB) CreateCollection(name string) error {
+	db.dbMutex.Lock()
+	defer db.dbMutex.Unlock()
+
+	// Check if collection already exists
+	if _, ok := db.collections[name]; ok {
+		return fmt.Errorf("collection %s already exists", name)
+	}
+
+	filePath := filepath.Join(db.dataDir, name+".toon")
+
+	// Check if file already exists on disk
+	if _, err := os.Stat(filePath); err == nil {
+		return fmt.Errorf("collection file %s already exists", name)
+	}
+
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("could not create collection file: %w", err)
+	}
+
+	c := newCollection(name, filePath, file, db.config.Compression)
+	db.collections[name] = c
+
+	return nil
+}
+
+// DeleteCollection removes a collection from memory and deletes its file
+func (db *DB) DeleteCollection(name string) error {
+	db.dbMutex.Lock()
+	defer db.dbMutex.Unlock()
+
+	c, ok := db.collections[name]
+	if !ok {
+		// Collection not in memory, but check if file exists
+		filePath := filepath.Join(db.dataDir, name+".toon")
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			return fmt.Errorf("collection %s does not exist", name)
+		}
+		// File exists, delete it
+		if err := os.Remove(filePath); err != nil {
+			return fmt.Errorf("could not delete collection file: %w", err)
+		}
+		return nil
+	}
+
+	// Close the collection
+	if err := c.Close(); err != nil {
+		return fmt.Errorf("could not close collection: %w", err)
+	}
+
+	// Delete the file
+	if err := os.Remove(c.filePath); err != nil {
+		return fmt.Errorf("could not delete collection file: %w", err)
+	}
+
+	// Remove from map
+	delete(db.collections, name)
+
+	return nil
+}

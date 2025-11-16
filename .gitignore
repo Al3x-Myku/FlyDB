@@ -38,5 +38,9 @@ test-update/
 Thumbs.db
 
 flydb
+flydb.log
+flydb-server
+*.log
 *.gz
 *.zip
+test-crud.sh

@@ -57,6 +57,80 @@ func (c *Collection) Insert(doc Document) (string, error) {
 	return id, nil
 }
 
+// Delete removes a document from the memtable and index
+// Note: This is a logical delete that removes from memory and creates a tombstone
+func (c *Collection) Delete(id string) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.file == nil {
+		return ErrCollectionClosed
+	}
+
+	// Remove from memtable
+	found := false
+	for i := len(c.memtable) - 1; i >= 0; i-- {
+		if fmt.Sprint(c.memtable[i]["id"]) == id {
+			c.memtable = append(c.memtable[:i], c.memtable[i+1:]...)
+			found = true
+			break
+		}
+	}
+
+	// Remove from index (will be gone after commit)
+	if _, ok := c.index[id]; ok {
+		delete(c.index, id)
+		found = true
+	}
+
+	if !found {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+// Update modifies an existing document
+func (c *Collection) Update(id string, doc Document) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.file == nil {
+		return ErrCollectionClosed
+	}
+
+	doc["id"] = id
+
+	inMemtable := false
+	for i := len(c.memtable) - 1; i >= 0; i-- {
+		if fmt.Sprint(c.memtable[i]["id"]) == id {
+			c.memtable[i] = doc
+			inMemtable = true
+			break
+		}
+	}
+
+	if inMemtable {
+		return nil
+	}
+
+	if _, ok := c.index[id]; ok {
+		c.memtable = append(c.memtable, doc)
+		return nil
+	}
+
+	return ErrNotFound
+}
+
+func (c *Collection) isInMemtable(id string) bool {
+	for i := len(c.memtable) - 1; i >= 0; i-- {
+		if fmt.Sprint(c.memtable[i]["id"]) == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Collection) Commit() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

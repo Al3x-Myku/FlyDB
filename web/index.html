@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>FlyDB Dashboard</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                        "blue-strong": "#0052CC",
+                        "blue-light": "#E6F0FF",
+                        "off-white": "#F8F9FA",
+                        "gray-dark": "#343A40",
+                        "gray-light": "#6c757d",
+                        "green-status": "#28A745",
+                        "red-status": "#DC3545",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="flex min-h-screen w-full">
+    <!-- SideNavBar -->
+    <aside class="flex w-64 flex-col bg-white dark:bg-[#111a22] border-r border-gray-200 dark:border-gray-800">
+        <div class="flex h-16 shrink-0 items-center gap-3 px-6">
+            <span class="material-symbols-outlined text-blue-strong text-3xl">database</span>
+            <h1 class="text-gray-dark dark:text-white text-lg font-bold leading-normal">FlyDB Admin</h1>
+        </div>
+        <nav class="flex flex-1 flex-col gap-2 px-4 py-4">
+            <a class="flex items-center gap-3 rounded-lg bg-blue-light dark:bg-primary/20 px-3 py-2 text-blue-strong dark:text-white" href="#" onclick="showPage('dashboard')">
+                <span class="material-symbols-outlined">dashboard</span>
+                <p class="text-sm font-medium leading-normal">Dashboard</p>
+            </a>
+            <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-light dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10" href="#" onclick="showPage('collections')">
+                <span class="material-symbols-outlined">table</span>
+                <p class="text-sm font-medium leading-normal">Collections</p>
+            </a>
+            <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-light dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10" href="#" onclick="showPage('query')">
+                <span class="material-symbols-outlined">code</span>
+                <p class="text-sm font-medium leading-normal">Query Editor</p>
+            </a>
+            <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-light dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10" href="#" onclick="showPage('settings')">
+                <span class="material-symbols-outlined">settings</span>
+                <p class="text-sm font-medium leading-normal">Settings</p>
+            </a>
+        </nav>
+    </aside>
+    
+    <div class="flex flex-1 flex-col">
+        <!-- TopNavBar -->
+        <header class="flex h-16 items-center justify-between whitespace-nowrap border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-[#111a22] px-6">
+            <div class="flex items-center gap-4">
+                <h2 class="text-gray-dark dark:text-white text-lg font-bold leading-tight" id="db-name">FlyDB</h2>
+                <span id="db-path" class="text-sm text-gray-light dark:text-gray-400"></span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleTheme()" class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-light dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10">
+                    <span class="material-symbols-outlined">dark_mode</span>
+                </button>
+                <button onclick="refreshData()" class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-light dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10">
+                    <span class="material-symbols-outlined">refresh</span>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto p-6 md:p-8">
+            <div class="mx-auto flex w-full max-w-7xl flex-col gap-6" id="main-content">
+                <!-- Content will be loaded here -->
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
