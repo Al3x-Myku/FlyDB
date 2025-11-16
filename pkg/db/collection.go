@@ -407,16 +407,101 @@ func (c *Collection) Name() string {
 	return c.name
 }
 
-func (c *Collection) All() ([]Document, error) {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+func (c *Collection) SetCompression(enabled bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.compression = enabled
+}
 
+func (c *Collection) Compact() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.file == nil {
+		return ErrCollectionClosed
+	}
+
+	allDocs, err := c.allInternal()
+	if err != nil {
+		return fmt.Errorf("could not get all documents: %w", err)
+	}
+
+	if err := c.file.Truncate(0); err != nil {
+		return fmt.Errorf("could not truncate file: %w", err)
+	}
+
+	if _, err := c.file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("could not seek to start: %w", err)
+	}
+
+	c.index = make(map[string]BlockInfo)
+	c.memtable = allDocs
+
+	if len(c.memtable) == 0 {
+		return nil
+	}
+
+	return c.commitInternal()
+}
+
+func (c *Collection) commitInternal() error {
+	if len(c.memtable) == 0 {
+		return nil
+	}
+
+	toonBlock, err := toon.Encode(c.name, c.memtable)
+	if err != nil {
+		return fmt.Errorf("could not encode TOON block: %w", err)
+	}
+
+	dataToWrite := toonBlock
+	if c.compression {
+		var buf bytes.Buffer
+		gzipWriter := gzip.NewWriter(&buf)
+		if _, err := gzipWriter.Write(toonBlock); err != nil {
+			return fmt.Errorf("could not compress TOON block: %w", err)
+		}
+		if err := gzipWriter.Close(); err != nil {
+			return fmt.Errorf("could not close gzip writer: %w", err)
+		}
+		dataToWrite = buf.Bytes()
+	}
+
+	offset, err := c.file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return fmt.Errorf("could not seek to end of file: %w", err)
+	}
+
+	n, err := c.file.Write(dataToWrite)
+	if err != nil {
+		return fmt.Errorf("could not write TOON block to file: %w", err)
+	}
+
+	if err := c.file.Sync(); err != nil {
+		return fmt.Errorf("could not sync file: %w", err)
+	}
+
+	info := BlockInfo{
+		Offset: offset,
+		Length: int64(n),
+	}
+
+	for _, doc := range c.memtable {
+		id := fmt.Sprint(doc["id"])
+		c.index[id] = info
+	}
+
+	c.memtable = make([]Document, 0)
+
+	return nil
+}
+
+func (c *Collection) allInternal() ([]Document, error) {
 	if c.file == nil {
 		return nil, ErrCollectionClosed
 	}
 
 	var allDocs []Document
-
 	seenIDs := make(map[string]bool)
 
 	for i := len(c.memtable) - 1; i >= 0; i-- {
@@ -480,4 +565,11 @@ func (c *Collection) All() ([]Document, error) {
 	}
 
 	return allDocs, nil
+}
+
+func (c *Collection) All() ([]Document, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	return c.allInternal()
 }

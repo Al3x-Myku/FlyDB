@@ -2,6 +2,7 @@
 const API_BASE = 'http://localhost:8080';
 
 // State
+let currentPage = 'dashboard';
 let currentCollection = null;
 let collections = [];
 let stats = {};
@@ -22,6 +23,7 @@ function toggleTheme() {
 
 // Navigation
 function showPage(page) {
+    currentPage = page;
     switch(page) {
         case 'dashboard':
             loadDashboard();
@@ -50,6 +52,7 @@ function updateActiveNav(page) {
 
 // Data Loading
 async function loadDashboard() {
+    currentPage = 'dashboard';
     try {
         const [statsData, collectionsData] = await Promise.all([
             fetchAPI('/api/stats'),
@@ -67,7 +70,30 @@ async function loadDashboard() {
 }
 
 async function refreshData() {
-    await loadDashboard();
+    // Refresh data based on current page
+    switch(currentPage) {
+        case 'dashboard':
+            await loadDashboard();
+            break;
+        case 'collections':
+            if (currentCollection) {
+                // If viewing a specific collection, refresh that view
+                await viewCollection(currentCollection);
+            } else {
+                // Otherwise refresh collections page
+                await loadCollectionsPage();
+            }
+            break;
+        case 'query':
+            // Refresh collections list for query page
+            const data = await fetchAPI('/api/collections');
+            collections = data.collections || [];
+            loadQueryPage();
+            break;
+        case 'settings':
+            await loadSettingsPage();
+            break;
+    }
     await loadCompressionSetting();
     showNotification('Data refreshed');
 }
@@ -250,6 +276,8 @@ function renderCollectionStats() {
 
 // Collections Page
 async function loadCollectionsPage() {
+    currentPage = 'collections';
+    currentCollection = null;
     try {
         const data = await fetchAPI('/api/collections');
         collections = data.collections || [];
@@ -312,6 +340,10 @@ function renderCollectionCard(name) {
                     Commit
                 </button>
             </div>
+            <button onclick="compactCollection('${name}')" class="w-full h-8 cursor-pointer rounded-lg border border-blue-strong text-blue-strong text-xs font-medium hover:bg-blue-light dark:hover:bg-blue-strong/20" title="Rewrite entire collection with current compression setting">
+                <span class="material-symbols-outlined text-sm align-middle">compress</span>
+                Compact
+            </button>
         </div>
     `;
 }
@@ -348,6 +380,10 @@ function renderCollectionView(name, counts, documents) {
             </button>
             <button onclick="commitCollection('${name}')" class="flex h-10 px-4 items-center justify-center rounded-lg bg-blue-strong text-white text-sm font-medium hover:bg-blue-strong/90">
                 Commit Changes
+            </button>
+            <button onclick="compactCollection('${name}')" class="flex h-10 px-4 items-center justify-center gap-2 rounded-lg border border-blue-strong text-blue-strong text-sm font-medium hover:bg-blue-light dark:hover:bg-blue-strong/20" title="Rewrite entire collection with current compression setting">
+                <span class="material-symbols-outlined">compress</span>
+                Compact
             </button>
         </div>
         
@@ -394,6 +430,7 @@ function renderCollectionView(name, counts, documents) {
 
 // Query Page
 function loadQueryPage() {
+    currentPage = 'query';
     const content = `
         <div class="flex flex-col gap-1">
             <p class="text-gray-dark dark:text-white text-3xl font-black leading-tight">Query Editor</p>
@@ -536,6 +573,7 @@ function displayQueryResults(results, count) {
 
 // Settings Page
 function loadSettingsPage() {
+    currentPage = 'settings';
     const content = `
         <div class="flex flex-col gap-1">
             <p class="text-gray-dark dark:text-white text-3xl font-black leading-tight">Settings</p>
@@ -609,7 +647,7 @@ async function commitCollection(name) {
     try {
         const data = await fetchAPI(`/api/collections/${name}/commit`, { method: 'POST' });
         showNotification(data.message);
-        await loadDashboard();
+        await refreshData();
     } catch (error) {
         showError('Commit failed: ' + error.message);
     }
@@ -624,7 +662,21 @@ async function commitAllCollections() {
         }
     }
     showNotification('All collections committed');
-    await loadDashboard();
+    await refreshData();
+}
+
+async function compactCollection(name) {
+    if (!confirm(`Compact collection "${name}"? This will rewrite the entire collection file with the current compression setting.`)) {
+        return;
+    }
+    
+    try {
+        const data = await fetchAPI(`/api/collections/${name}/compact`, { method: 'POST' });
+        showNotification(data.message);
+        await refreshData();
+    } catch (error) {
+        showError('Compact failed: ' + error.message);
+    }
 }
 
 // UI Helpers
@@ -891,15 +943,23 @@ function parseTOON(toonText) {
     }
     
     const [, collectionName, count, schemaStr] = headerMatch;
-    const schema = schemaStr.split(',').map(s => s.trim());
     const numDocs = parseInt(count, 10);
     
     if (numDocs === 0) return [];
+    
+    const schema = schemaStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    
+    if (schema.length === 0) {
+        console.error('Empty schema in TOON header');
+        return [];
+    }
     
     const documents = [];
     
     for (let i = 1; i <= numDocs && i < lines.length; i++) {
         const line = lines[i];
+        if (!line.trim()) continue;
+        
         const values = parseCSVLine(line);
         
         const doc = {};

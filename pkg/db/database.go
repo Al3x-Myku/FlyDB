@@ -38,6 +38,9 @@ func (db *DB) SetCompression(enabled bool) {
 	db.dbMutex.Lock()
 	defer db.dbMutex.Unlock()
 	db.config.Compression = enabled
+	for _, c := range db.collections {
+		c.SetCompression(enabled)
+	}
 }
 
 func (db *DB) IsCompressionEnabled() bool {
